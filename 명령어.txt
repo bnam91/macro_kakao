@@ -1,0 +1,4 @@
+python macro_kakao.1.2.py --template
+
+
+python macro_kakao.1.2.py -t
