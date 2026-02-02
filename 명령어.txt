@@ -1,4 +1,35 @@
+#템플릿 명령어(cli)
+
 python macro_kakao.1.2.py --template
 
 
 python macro_kakao.1.2.py -t
+
+
+cd "C:\Users\darli\Desktop\github\macro_kakao" && python macro_kakao.1.2.py --template
+
+
+예약생성 및 확인
+
+
+===
+
+C:\Users\darli>
+schtasks /create ^
+More?  /sc daily ^
+More?  /st 08:15 ^
+More?  /sd 2026/02/01 ^
+More?  /ed 2026/02/05 ^
+More?  /tn "macro_kakao_morning" ^
+More?  /tr "cmd /c cd \"C:\Users\darli\Desktop\github\macro_kakao\" && python macro_kakao.1.2.py --template"
+성공: 예약된 작업 "macro_kakao_morning"을(를) 만들었습니다.
+
+===
+
+
+C:\Users\darli>schtasks /query | findstr macro_kakao
+macro_kakao_morning                      2026-02-01 오전 8:15:0 준비
+macro_kakao_night                        2026-02-01 오후 10:45: 준비
+
+
+schtasks /query /tn macro_kakao_morning /v /fo list

@@ -228,6 +228,8 @@ COORDS = {
     "loginscs_bt": "loginscs_bt.png",
     "login_emt_bt": "login_emt_bt.png",
     "login_stanby_bt": "login_stanby_bt.png",
+    "logout_popup": "logout_popup.png",
+    "login_push": "login_push.png",
     "leftprofile_bt01": "leftprofile_bt01.png",
     "leftchat_bt01": "leftchat_bt01.png",
     "topchat02": "topchat02.png",
@@ -323,8 +325,10 @@ def locate_and_click(image_path):
         print(f"{image_path}의 위치를 찾았습니다: {location}, 클릭합니다.")
         pyautogui.click(location)
         tm.sleep(0.5)
+        return True
     else:
         print(f"{image_path}의 위치를 찾을 수 없습니다.")
+        return False
 
 def locate_and_click_offset(image_path, offset_x=0, offset_y=0):
     print(f"{image_path}을(를) 찾고 오프셋으로 클릭합니다: Offset: ({offset_x}, {offset_y})")
@@ -334,8 +338,10 @@ def locate_and_click_offset(image_path, offset_x=0, offset_y=0):
         print(f"{image_path}의 위치를 찾았습니다: {location}, 클릭합니다.")
         pyautogui.click(location)
         tm.sleep(0.5)
+        return True
     else:
         print(f"{image_path}의 위치를 찾을 수 없습니다.")
+        return False
 
 def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
     try:
@@ -385,8 +391,9 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
         elif state == "logged_in":
             # 로그인된 상태이므로 로그아웃 후 로그인 화면 대기
             print("로그인된 상태입니다. 로그아웃을 수행합니다.")
-            # 로그인 성공 확인용 버튼 클릭
-            locate_and_click(COORDS["loginscs_bt"])
+            # 로그인 성공 확인용 버튼 클릭 (실패해도 계속 진행)
+            if not locate_and_click(COORDS["loginscs_bt"]):
+                print(f"[WARNING] 로그인 성공 확인 버튼({COORDS['loginscs_bt']})을 찾을 수 없지만 계속 진행합니다.")
             tm.sleep(5)
             
             # 로그아웃 수행
@@ -427,37 +434,98 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
                 raise TimeoutError("로그인 화면이 나타나지 않았습니다.")
 
         # 로그인 수행
-        locate_and_click(COORDS["login_arr"])
+        if not locate_and_click(COORDS["login_arr"]):
+            # 실패 시 logout_popup.png 팝업이 떠있는지 확인
+            print(f"[DEBUG] {COORDS['login_arr']} 클릭 실패. logout_popup.png 팝업 확인 중...")
+            logout_popup_location = locate_image_on_monitors(COORDS["logout_popup"])
+            if logout_popup_location:
+                print(f"[DEBUG] logout_popup.png 팝업 감지됨. 팝업을 클릭하고 엔터를 누릅니다.")
+                pyautogui.click(logout_popup_location)
+                tm.sleep(0.5)
+                pyautogui.press('enter')
+                tm.sleep(2)  # 팝업 처리 후 대기
+                print(f"[DEBUG] logout_popup.png 처리 완료. login_arr 재시도 중...")
+                # 재시도
+                if not locate_and_click(COORDS["login_arr"]):
+                    raise RuntimeError(f"로그인 버튼({COORDS['login_arr']})을 찾을 수 없습니다. 로그인 화면이 표시되지 않았을 수 있습니다.")
+            else:
+                raise RuntimeError(f"로그인 버튼({COORDS['login_arr']})을 찾을 수 없습니다. 로그인 화면이 표시되지 않았을 수 있습니다.")
         tm.sleep(0.3)
         user_id_image = {
             "01021456993": COORDS["id_bt01"],
             "bnam91@naver.com": COORDS["id_bt02"],
             "jisu1021104@gmail.com": COORDS["id_bt03"]
         }
-        locate_and_click(user_id_image[combo_id])
+        if not locate_and_click(user_id_image[combo_id]):
+            raise RuntimeError(f"아이디 선택 버튼({user_id_image[combo_id]})을 찾을 수 없습니다.")
         tm.sleep(1)
         pyperclip.copy(entry_pw)
         pyautogui.hotkey('ctrl', 'v')
         tm.sleep(0.3)
         pyautogui.press('enter')
-        tm.sleep(15)
-        if not locate_image_on_monitors(COORDS["loginscs_bt"]):
-            messagebox.showerror("로그인 실패", "로그인에 실패했습니다.")
+        # loginscs_bt.png 또는 login_push.png 중 하나가 나타날 때까지 동적으로 체크
+        print(f"[DEBUG] 로그인 결과 확인 중... (loginscs_bt.png 또는 login_push.png 대기)")
+        max_wait = 120  # 최대 대기 시간 (초)
+        interval = 2   # 확인 간격 (초)
+        start_time = tm.time()
+        login_success = False
+        login_push_processed = False  # login_push.png 처리 여부
+        
+        while tm.time() - start_time < max_wait:
+            # loginscs_bt.png 확인 (로그인 성공)
+            if locate_image_on_monitors(COORDS["loginscs_bt"]):
+                print(f"[DEBUG] loginscs_bt.png 감지됨. 로그인 성공 확인.")
+                login_success = True
+                break
+            
+            # login_push.png 확인 (다른 PC에서 로그인 중)
+            if not login_push_processed:  # 아직 처리하지 않은 경우에만 확인
+                login_push_location = locate_image_on_monitors(COORDS["login_push"])
+                if login_push_location:
+                    print(f"[DEBUG] login_push.png 팝업 감지됨. 팝업을 클릭하고 엔터를 누릅니다.")
+                    pyautogui.click(login_push_location)
+                    tm.sleep(0.5)
+                    pyautogui.press('enter')
+                    tm.sleep(2)  # 팝업 처리 후 초기 대기
+                    print(f"[DEBUG] login_push.png 처리 완료. loginscs_bt.png 동적 체크 시작...")
+                    login_push_processed = True
+                    # login_push 처리 후에는 loginscs_bt.png만 계속 확인
+            
+            if login_push_processed:
+                # login_push 처리 후 loginscs_bt.png 동적 체크
+                if locate_image_on_monitors(COORDS["loginscs_bt"]):
+                    print(f"[DEBUG] login_push 처리 후 loginscs_bt.png 감지됨. 로그인 성공 확인.")
+                    login_success = True
+                    break
+                else:
+                    print(f"[DEBUG] login_push 처리 후 loginscs_bt.png 대기 중... ({int(tm.time() - start_time)}초 경과)")
+            
+            if not login_push_processed:
+                print(f"[DEBUG] 로그인 결과 확인 중... ({int(tm.time() - start_time)}초 경과)")
+            
+            tm.sleep(interval)
+        
+        if not login_success:
+            messagebox.showerror("로그인 실패", f"로그인에 실패했습니다. ({max_wait}초 내에 loginscs_bt.png를 찾지 못했습니다.)")
             return
         
         # 좌측 채팅 버튼 클릭
-        locate_and_click(COORDS["leftchat_bt01"])
+        if not locate_and_click(COORDS["leftchat_bt01"]):
+            raise RuntimeError(f"좌측 채팅 버튼({COORDS['leftchat_bt01']})을 찾을 수 없습니다.")
         tm.sleep(0.5)
 
         # 채팅 설정
         if chat_type == "친구(신규)":
-            locate_and_click(COORDS["leftprofile_bt01"])
+            if not locate_and_click(COORDS["leftprofile_bt01"]):
+                raise RuntimeError(f"프로필 버튼({COORDS['leftprofile_bt01']})을 찾을 수 없습니다.")
         elif chat_type == "개인채팅":
             if locate_image_on_monitors(COORDS["topopenchat_on"]):
-                locate_and_click_offset(COORDS["topopenchat_off"], -86, 0)  # 개인채팅 탭 클릭
+                if not locate_and_click_offset(COORDS["topopenchat_off"], -86, 0):  # 개인채팅 탭 클릭
+                    raise RuntimeError(f"개인채팅 탭 버튼({COORDS['topopenchat_off']})을 찾을 수 없습니다.")
         elif chat_type == "오픈채팅":
             if locate_image_on_monitors(COORDS["topopenchat_off"]):
-                locate_and_click(COORDS["topopenchat_on"])  # 오픈채팅 탭 클릭
+                if not locate_and_click(COORDS["topopenchat_on"]):  # 오픈채팅 탭 클릭
+                    raise RuntimeError(f"오픈채팅 탭 버튼({COORDS['topopenchat_on']})을 찾을 수 없습니다.")
 
         # 채팅방 찾기 및 열기
         print(f"[DEBUG] 엑셀 파일 읽기 시도: {EXCEL_PATH}")
@@ -490,7 +558,7 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
                 print(f"{chatroom_name} 채팅방에 메시지 전송 실패.")
                 continue
             
-            # pyautogui.press('enter')
+            # pyautogui.press('enter') # DEV
             tm.sleep(1)
             pyautogui.press('esc')  # ESC 키를 눌러 채팅창 닫기
             tm.sleep(1)
