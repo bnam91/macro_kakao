@@ -18,11 +18,13 @@ cd "C:\Users\darli\Desktop\github\macro_kakao" && python macro_kakao.1.2.py --te
 schtasks /delete /tn "macro_kakao_morning"
 
 
-1. 예약확인하기
-schtasks /query | findstr macro_kakao
+1. 예약확인하기 (타게팅)
+schtasks /query | findstr /i "macro_kakao_morning"
+
 
 1-1 예약확인하기 (문자열이 포함된 모든 작업 이름을 다 잡아)
-schtasks /query /tn "macro_kakao_morning" /v /fo list
+schtasks /query | findstr macro_kakao
+
 
 
 
@@ -41,7 +43,7 @@ schtasks /create ^
 
 schtasks /create ^
 /sc daily ^
-/st 10:50 ^
+/st 22:50 ^
 /sd 2026/02/11 ^
 /ed 2026/02/12 ^
 /tn "macro_kakao_night" ^
