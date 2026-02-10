@@ -1,1 +1,0 @@
-"c:\program files\python310\python.exe" "C:\Users\USER\Desktop\카카오매크로프로그램ver1.2\좌표\1.py"

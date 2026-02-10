@@ -14,22 +14,35 @@ cd "C:\Users\darli\Desktop\github\macro_kakao" && python macro_kakao.1.2.py --te
 
 ===
 
-C:\Users\darli>
+0. 예약삭제
+schtasks /delete /tn "macro_kakao_morning"
+
+
+1. 예약확인하기
+schtasks /query | findstr macro_kakao
+
+1-1 예약확인하기 (문자열이 포함된 모든 작업 이름을 다 잡아)
+schtasks /query /tn "macro_kakao_morning" /v /fo list
+
+
+
+2. 예약생성하기 (오전) , "macro_kakao_morning"
+
 schtasks /create ^
-More?  /sc daily ^
-More?  /st 08:15 ^
-More?  /sd 2026/02/01 ^
-More?  /ed 2026/02/05 ^
-More?  /tn "macro_kakao_morning" ^
-More?  /tr "cmd /c cd \"C:\Users\darli\Desktop\github\macro_kakao\" && python macro_kakao.1.2.py --template"
-성공: 예약된 작업 "macro_kakao_morning"을(를) 만들었습니다.
-
-===
+/sc daily ^
+/st 08:10 ^
+/sd 2026/02/11 ^
+/ed 2026/02/13 ^
+/tn "macro_kakao_morning" ^
+/tr "cmd /c cd \"C:\Users\darli\Desktop\github\macro_kakao\" && python macro_kakao.1.2.py --template"
 
 
-C:\Users\darli>schtasks /query | findstr macro_kakao
-macro_kakao_morning                      2026-02-01 오전 8:15:0 준비
-macro_kakao_night                        2026-02-01 오후 10:45: 준비
+2. 예약생성하기 (밤), "macro_kakao_night" 
 
-
-schtasks /query /tn macro_kakao_morning /v /fo list
+schtasks /create ^
+/sc daily ^
+/st 10:50 ^
+/sd 2026/02/11 ^
+/ed 2026/02/12 ^
+/tn "macro_kakao_night" ^
+/tr "cmd /c cd \"C:\Users\darli\Desktop\github\macro_kakao\" && python macro_kakao.1.2.py --template"

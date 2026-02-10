@@ -1,5 +1,6 @@
 import subprocess
 import pyautogui
+from pyautogui import FailSafeException
 import time as tm
 import cv2
 import numpy as np
@@ -187,7 +188,7 @@ def create_default_template():
         "password": "@rhdi120",
         "chat_type": "오픈채팅",
         "chatroom_type": "히딩크_체험단(임시)",
-        "text_file_path": r"C:\Users\darli\Desktop\github\macro_kakao\모집공고\팔도_이천비락식혜.txt"
+        "text_file_path": r"C:\Users\darli\Desktop\github\macro_kakao\모집공고\팔도_히딩크공고.txt"
     }
     if not os.path.exists(TEMPLATE_PATH):
         save_template(
@@ -398,7 +399,12 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
             
             # 로그아웃 수행
             print("로그아웃 중...")
-            pyautogui.hotkey('alt', 'n')
+            try:
+                pyautogui.hotkey('alt', 'n')
+            except FailSafeException:
+                print(f"[WARNING] 로그아웃 중 fail-safe가 작동했습니다. 마우스가 화면 모서리로 이동한 것으로 보입니다.")
+                print(f"[WARNING] 로그아웃을 건너뛰고 계속 진행합니다.")
+                # fail-safe 발생 시에도 로그인 화면 대기로 진행
             
             # 로그인 화면이 나타날 때까지 대기
             print("로그인 화면 대기 중...")
@@ -434,9 +440,23 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
                 raise TimeoutError("로그인 화면이 나타나지 않았습니다.")
 
         # 로그인 수행
-        if not locate_and_click(COORDS["login_arr"]):
-            # 실패 시 logout_popup.png 팝업이 떠있는지 확인
-            print(f"[DEBUG] {COORDS['login_arr']} 클릭 실패. logout_popup.png 팝업 확인 중...")
+        # login_arr와 login_stanby_bt가 모두 있어야 로그인 화면으로 판단
+        print(f"[DEBUG] 로그인 화면 확인 중... (login_arr와 login_stanby_bt 모두 필요)")
+        max_wait = 180  # 최대 대기 시간 (초)
+        interval = 2     # 확인 간격 (초)
+        start_time = tm.time()
+        login_screen_ready = False
+        
+        while tm.time() - start_time < max_wait:
+            login_arr_found = locate_image_on_monitors(COORDS["login_arr"])
+            login_stanby_found = locate_image_on_monitors(COORDS["login_stanby_bt"])
+            
+            if login_arr_found and login_stanby_found:
+                print(f"[DEBUG] 로그인 화면 확인됨. login_arr와 login_stanby_bt 모두 발견.")
+                login_screen_ready = True
+                break
+            
+            # logout_popup.png 팝업이 떠있는지 확인
             logout_popup_location = locate_image_on_monitors(COORDS["logout_popup"])
             if logout_popup_location:
                 print(f"[DEBUG] logout_popup.png 팝업 감지됨. 팝업을 클릭하고 엔터를 누릅니다.")
@@ -444,20 +464,40 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
                 tm.sleep(0.5)
                 pyautogui.press('enter')
                 tm.sleep(2)  # 팝업 처리 후 대기
-                print(f"[DEBUG] logout_popup.png 처리 완료. login_arr 재시도 중...")
-                # 재시도
-                if not locate_and_click(COORDS["login_arr"]):
-                    raise RuntimeError(f"로그인 버튼({COORDS['login_arr']})을 찾을 수 없습니다. 로그인 화면이 표시되지 않았을 수 있습니다.")
-            else:
-                raise RuntimeError(f"로그인 버튼({COORDS['login_arr']})을 찾을 수 없습니다. 로그인 화면이 표시되지 않았을 수 있습니다.")
+                print(f"[DEBUG] logout_popup.png 처리 완료. 로그인 화면 재확인 중...")
+            
+            print(f"[DEBUG] 로그인 화면 대기 중... login_arr: {login_arr_found}, login_stanby_bt: {login_stanby_found} ({int(tm.time() - start_time)}초 경과)")
+            tm.sleep(interval)
+        
+        if not login_screen_ready:
+            raise RuntimeError(f"로그인 화면을 찾을 수 없습니다. ({max_wait}초 내에 login_arr와 login_stanby_bt를 모두 찾지 못했습니다.)")
+        
+        # 두 이미지가 모두 확인되었으므로 login_arr 클릭
+        if not locate_and_click(COORDS["login_arr"]):
+            raise RuntimeError(f"로그인 버튼({COORDS['login_arr']})을 클릭할 수 없습니다.")
         tm.sleep(0.3)
         user_id_image = {
             "01021456993": COORDS["id_bt01"],
             "bnam91@naver.com": COORDS["id_bt02"],
             "jisu1021104@gmail.com": COORDS["id_bt03"]
         }
-        if not locate_and_click(user_id_image[combo_id]):
-            raise RuntimeError(f"아이디 선택 버튼({user_id_image[combo_id]})을 찾을 수 없습니다.")
+        # 아이디 선택 버튼을 동적으로 찾기 (최대 60초)
+        print(f"[DEBUG] 아이디 선택 버튼({user_id_image[combo_id]}) 대기 중...")
+        max_wait = 60  # 최대 대기 시간 (초)
+        interval = 2   # 확인 간격 (초)
+        start_time = tm.time()
+        id_button_found = False
+        
+        while tm.time() - start_time < max_wait:
+            if locate_and_click(user_id_image[combo_id]):
+                print(f"[DEBUG] 아이디 선택 버튼({user_id_image[combo_id]}) 찾음.")
+                id_button_found = True
+                break
+            print(f"[DEBUG] 아이디 선택 버튼 대기 중... ({int(tm.time() - start_time)}초 경과)")
+            tm.sleep(interval)
+        
+        if not id_button_found:
+            raise RuntimeError(f"아이디 선택 버튼({user_id_image[combo_id]})을 찾을 수 없습니다. ({max_wait}초 내에 찾지 못했습니다.)")
         tm.sleep(1)
         pyperclip.copy(entry_pw)
         pyautogui.hotkey('ctrl', 'v')
@@ -535,33 +575,53 @@ def run_kakao_macro(combo_id, entry_pw, chat_type, chatroom_type, text_content):
         sheet = pd.read_excel(EXCEL_PATH, sheet_name=chatroom_type)
         print(f"[DEBUG] 엑셀 파일 읽기 성공, 행 수: {len(sheet)}")
         for chatroom_name in sheet.iloc[:, 2]:
-            pyautogui.hotkey('ctrl', 'f')
-            tm.sleep(0.5)
-            for _ in range(20):
-                pyautogui.press('backspace')
-            pyperclip.copy(chatroom_name)
-            pyautogui.hotkey('ctrl', 'v')
-            tm.sleep(0.5)
-            pyautogui.press('enter')
-            tm.sleep(3)
-            if not locate_image_on_monitors(COORDS["chatscsbt"]):
-                print(f"{chatroom_name} 채팅방을 열지 못했습니다.")
-                continue
+            try:
+                pyautogui.hotkey('ctrl', 'f')
+                tm.sleep(0.5)
+                for _ in range(20):
+                    pyautogui.press('backspace')
+                pyperclip.copy(chatroom_name)
+                pyautogui.hotkey('ctrl', 'v')
+                tm.sleep(0.5)
+                pyautogui.press('enter')
+                tm.sleep(3)
+                if not locate_image_on_monitors(COORDS["chatscsbt"]):
+                    print(f"{chatroom_name} 채팅방을 열지 못했습니다.")
+                    continue
 
-            # 채팅 입력 및 전송
-            pyperclip.copy(text_content)
-            pyautogui.hotkey('ctrl', 'v')
-            tm.sleep(2)  # 추가된 대기 시간
-            if locate_image_on_monitors(COORDS["chatscs2bt"]):
-                print(f"{chatroom_name} 채팅방에 메시지 전송 성공.")
-            else:
-                print(f"{chatroom_name} 채팅방에 메시지 전송 실패.")
+                # 채팅 입력 및 전송
+                pyperclip.copy(text_content)
+                pyautogui.hotkey('ctrl', 'v')
+                tm.sleep(2)  # 추가된 대기 시간
+                if locate_image_on_monitors(COORDS["chatscs2bt"]):
+                    print(f"{chatroom_name} 채팅방에 메시지 전송 성공.")
+                else:
+                    print(f"{chatroom_name} 채팅방에 메시지 전송 실패.")
+                    continue
+                
+                pyautogui.press('enter') # DEV
+                tm.sleep(1)
+                pyautogui.press('esc')  # ESC 키를 눌러 채팅창 닫기
+                tm.sleep(1)
+            except FailSafeException:
+                print(f"[WARNING] {chatroom_name} 처리 중 fail-safe가 작동했습니다. 마우스가 화면 모서리로 이동한 것으로 보입니다.")
+                print(f"[WARNING] {chatroom_name} 처리를 건너뛰고 다음 채팅방으로 진행합니다.")
                 continue
-            
-            # pyautogui.press('enter') # DEV
+        
+        # 모든 작업 완료
+        print(f"\n[INFO] ========== 모든 작업 완료 ==========")
+        print(f"[INFO] 채팅방 유형: {chatroom_type}")
+        print(f"[INFO] 총 처리된 채팅방 수: {len(sheet)}")
+        print(f"[INFO] 작업이 성공적으로 완료되었습니다.")
+        print(f"[INFO] ====================================\n")
+        
+        # ESC 키를 1초 간격으로 10번 누르기
+        print(f"[INFO] ESC 키를 1초 간격으로 10번 누릅니다...")
+        for i in range(10):
+            pyautogui.press('esc')
+            print(f"[INFO] ESC 키 입력 ({i+1}/10)")
             tm.sleep(1)
-            pyautogui.press('esc')  # ESC 키를 눌러 채팅창 닫기
-            tm.sleep(1)
+        print(f"[INFO] ESC 키 입력 완료.")
 
     except FileNotFoundError as e:
         error_msg = f"파일을 찾을 수 없습니다: {e}"
